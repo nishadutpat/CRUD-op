@@ -2,62 +2,59 @@ import json
 import boto3
 import os
 
-# Initialize DynamoDB
-dynamodb = boto3.resource("dynamodb")
-table_name = os.getenv("DYNAMODB_TABLE", "deplo_table")  # Replace with your table name
+dynamodb = boto3.resource('dynamodb')
+table_name = os.environ['DYNAMODB_TABLE']
 table = dynamodb.Table(table_name)
 
 def lambda_handler(event, context):
-    http_method = event["httpMethod"]
-    path = event["path"]
+    http_method = event.get('httpMethod', '')
 
-    if http_method == "POST" and path == "/users":
-        return create_user(event)
-
-    elif http_method == "GET" and path == "/users":
+    if http_method == 'POST':
+        return add_user(event)
+    elif http_method == 'GET':
         return get_users()
-
-    elif http_method == "DELETE" and path.startswith("/users/"):
-        user_id = path.split("/")[-1]
-        return delete_user(user_id)
-
+    elif http_method == 'DELETE':
+        return delete_user(event)
     else:
         return {
-            "statusCode": 400,
-            "body": json.dumps({"message": "Invalid request"})
+            'statusCode': 400,
+            'body': json.dumps({'message': 'Unsupported method'})
         }
 
-def create_user(event):
+def add_user(event):
     try:
-        body = json.loads(event["body"])
-        user_id = body.get("UserID")
-        name = body.get("Name")
-        email = body.get("Email")
-
-        if not user_id or not name or not email:
-            return {"statusCode": 400, "body": json.dumps({"message": "All fields are required"})}
-
-        table.put_item(Item={"UserID": user_id, "Name": name, "Email": email})
-
-        return {"statusCode": 200, "body": json.dumps({"message": "User added successfully"})}
-    
+        body = json.loads(event['body'])
+        table.put_item(Item=body)
+        return {
+            'statusCode': 201,
+            'body': json.dumps({'message': 'User added successfully'})
+        }
     except Exception as e:
-        return {"statusCode": 500, "body": json.dumps({"message": str(e)})}
+        return error_response(str(e))
 
 def get_users():
     try:
         response = table.scan()
-        users = response.get("Items", [])
-
-        return {"statusCode": 200, "body": json.dumps(users)}
-
+        return {
+            'statusCode': 200,
+            'body': json.dumps(response.get('Items', []))
+        }
     except Exception as e:
-        return {"statusCode": 500, "body": json.dumps({"message": str(e)})}
+        return error_response(str(e))
 
-def delete_user(user_id):
+def delete_user(event):
     try:
-        table.delete_item(Key={"UserID": user_id})
-        return {"statusCode": 200, "body": json.dumps({"message": "User deleted successfully"})}
-
+        user_id = event['queryStringParameters']['UserID']
+        table.delete_item(Key={'UserID': user_id})
+        return {
+            'statusCode': 200,
+            'body': json.dumps({'message': 'User deleted successfully'})
+        }
     except Exception as e:
-        return {"statusCode": 500, "body": json.dumps({"message": str(e)})}
+        return error_response(str(e))
+
+def error_response(error_message):
+    return {
+        'statusCode': 500,
+        'body': json.dumps({'error': error_message})
+    }
