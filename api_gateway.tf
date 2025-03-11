@@ -64,8 +64,17 @@ resource "aws_api_gateway_integration" "lambda_delete" {
 resource "aws_api_gateway_deployment" "deployment" {
   depends_on  = [aws_api_gateway_integration.lambda_post, aws_api_gateway_integration.lambda_get, aws_api_gateway_integration.lambda_delete]
   rest_api_id = aws_api_gateway_rest_api.user_api.id
-  stage_name  = "test"
+  
 }
+
+resource "aws_api_gateway_stage" "test" {
+  stage_name    = "test"
+  rest_api_id   = aws_api_gateway_rest_api.users_api.id
+  deployment_id = aws_api_gateway_deployment.deployment.id
+
+ 
+}
+
 
 output "api_url" {
   value = "${aws_api_gateway_deployment.deployment.invoke_url}/users"
