@@ -1,60 +1,77 @@
 import json
 import boto3
-import os
+import uuid
 
-dynamodb = boto3.resource('dynamodb')
-table_name = os.environ['DYNAMODB_TABLE']
-table = dynamodb.Table(table_name)
+dynamodb = boto3.resource("dynamodb")
+table = dynamodb.Table("deplo_table")
 
 def lambda_handler(event, context):
-    http_method = event.get('httpMethod', '')
+    path = event.get("resource")
+    http_method = event.get("httpMethod")
 
-    if http_method == 'POST':
-        return add_user(event)
-    elif http_method == 'GET':
-        return get_users()
-    elif http_method == 'DELETE':
-        return delete_user(event)
+    origin = event.get("headers", {}).get("origin", "*")
+
+    
+    if http_method == "OPTIONS":
+        return {
+            "statusCode": 200,
+            "headers": {
+                "Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Methods": "POST, GET, DELETE, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type"
+            },
+            "body": json.dumps({"message": "CORS preflight success"})
+        }
+
+    if path == "/user":
+        if http_method == "POST":
+            return create_user(event, origin)
+        elif http_method == "GET":
+            return get_users(origin)
+        elif http_method == "DELETE":
+            return delete_user(event, origin)
+        else:
+            return {
+                "statusCode": 400,
+                "headers": {"Access-Control-Allow-Origin": origin},
+                "body": json.dumps({"error": f"Unsupported HTTP method: {http_method}"})
+            }
     else:
         return {
-            'statusCode': 400,
-            'body': json.dumps({'message': 'Unsupported method'})
+            "statusCode": 404,
+            "headers": {"Access-Control-Allow-Origin": origin},
+            "body": json.dumps({"error": "Invalid resource path"})
         }
 
-def add_user(event):
-    try:
-        body = json.loads(event['body'])
-        table.put_item(Item=body)
-        return {
-            'statusCode': 201,
-            'body': json.dumps({'message': 'User added successfully'})
-        }
-    except Exception as e:
-        return error_response(str(e))
-
-def get_users():
-    try:
-        response = table.scan()
-        return {
-            'statusCode': 200,
-            'body': json.dumps(response.get('Items', []))
-        }
-    except Exception as e:
-        return error_response(str(e))
-
-def delete_user(event):
-    try:
-        user_id = event['queryStringParameters']['UserID']
-        table.delete_item(Key={'UserID': user_id})
-        return {
-            'statusCode': 200,
-            'body': json.dumps({'message': 'User deleted successfully'})
-        }
-    except Exception as e:
-        return error_response(str(e))
-
-def error_response(error_message):
+def create_user(event, origin):
+    body = json.loads(event["body"])
+    user_id = str(uuid.uuid4())
+    user_data = {
+        "id": user_id,
+        "Name": body["Name"],
+        "Email": body["Email"]
+    }
+    table.put_item(Item=user_data)
     return {
-        'statusCode': 500,
-        'body': json.dumps({'error': error_message})
+        "statusCode": 200,
+        "headers": {"Access-Control-Allow-Origin": origin},
+        "body": json.dumps({"message": "User added successfully", "id": user_id})
+    }
+
+def get_users(origin):
+    response = table.scan()
+    return {
+        "statusCode": 200,
+        "headers": {"Access-Control-Allow-Origin": origin},
+        "body": json.dumps(response["Items"])
+    }
+
+def delete_user(event, origin):
+    body = json.loads(event["body"])
+    user_id = body["id"]
+    table.delete_item(Key={"id": user_id})
+    return {
+        "statusCode": 200,
+        "headers": {"Access-Control-Allow-Origin": origin},
+        "body": json.dumps({"message": "User deleted successfully"})
     }

@@ -7,13 +7,8 @@ resource "aws_lambda_function" "crud_lambda" {
   filename         = "lambda_function.zip"
   source_code_hash = filebase64sha256("lambda_function.zip")
 
-  environment {
-    variables = {
-      DYNAMODB_TABLE = aws_dynamodb_table.deplo_table.name
-    }
-  }
+ 
 }
-
 
 resource "aws_iam_role" "lambda_CRUD_role" {
   name = "lambda_CRUD_role"
